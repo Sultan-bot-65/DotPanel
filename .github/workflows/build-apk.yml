@@ -12,30 +12,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Locate project folder
+        run: |
+          f=$(find . -name settings.gradle.kts -not -path '*/node_modules/*' | head -n 1)
+          if [ -z "$f" ]; then
+            echo "settings.gradle.kts not found. Repo contents:"; ls -R | head -50; exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$f")" >> "$GITHUB_ENV"
+          echo "Project folder: $(dirname "$f")"
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
 
-      # The Android SDK (platform 35, build-tools, accepted licenses) is preinstalled on
-      # GitHub's Ubuntu runners, so no separate SDK setup step is needed.
-
+      # Android SDK (platform 35, build-tools, licenses) is preinstalled on GitHub's Ubuntu runners.
+      # Gradle is installed here, so the build does not depend on gradlew / gradle-wrapper.jar.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        with:
+          gradle-version: 8.9
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v5
         with:
           name: DotPanel-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
       - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle testDebugUnitTest --stacktrace
