@@ -40,7 +40,26 @@ jobs:
 
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Show build errors in summary
+        if: failure()
+        run: |
+          {
+            echo '## Build errors'
+            echo '```'
+            grep -E '^e: |error:|What went wrong|Caused by|Execution failed|Unresolved|Could not' "$RUNNER_TEMP/build.log" | head -n 60
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-log
+          path: ${{ runner.temp }}/build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v5
